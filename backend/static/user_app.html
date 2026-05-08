@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MTS - Field SOS Unit</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #1e293b; color: white; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .container { text-align: center; width: 90%; max-width: 400px; background: #0f172a; padding: 40px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        input { width: 100%; padding: 15px; margin: 20px 0; border-radius: 8px; border: 1px solid #334155; background: #1e293b; color: white; font-size: 1.2rem; text-align: center; }
+        #sos-btn { width: 180px; height: 180px; font-size: 2rem; font-weight: bold; color: white; background: #ef4444; border: 8px solid #7f1d1d; border-radius: 50%; cursor: pointer; transition: all 0.2s; box-shadow: 0 0 30px rgba(239, 68, 68, 0.4); }
+        #sos-btn:active { transform: scale(0.9); background: #b91c1c; }
+        #status-text { margin-top: 20px; font-size: 0.9rem; min-height: 1.2em; color: #94a3b8; }
+        .success { color: #22c55e !important; }
+        .error { color: #f87171 !important; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1 style="margin-top:0">FIELD SOS</h1>
+        <p style="color: #94a3b8">Enter Callsign to Register Emergency</p>
+        
+        <input type="text" id="callsign" placeholder="e.g. UN-99" value="UN-99">
+        
+        <button id="sos-btn" onclick="sendSOS()">SOS</button>
+        
+        <div id="status-text">Ready for signal...</div>
+    </div>
+
+    <script>
+        async function sendSOS() {
+            const callsignInput = document.getElementById('callsign').value.toUpperCase().trim();
+            const status = document.getElementById('status-text');
+            
+            if (!callsignInput) {
+                alert("Please enter your callsign first.");
+                return;
+            }
+
+            status.innerText = "🛰️ Locating GPS...";
+            status.className = "";
+
+            // Step 1: Get GPS
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+                
+                status.innerText = "📡 Transmitting to HQ...";
+
+                // Step 2: Send to Flask (Using ABSOLUTE URL to Port 5000)
+                const targetUrl = 'http://127.0.0.1:5000/api/missions/trigger_sos';
+                
+                try {
+                    const response = await fetch(targetUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            callsign: callsignInput,
+                            lat: lat,
+                            lng: lng
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok) {
+                        status.innerText = "✅ SIGNAL RECEIVED BY COMMAND";
+                        status.className = "success";
+                    } else {
+                        status.innerText = "❌ ERROR: " + (result.error || "Server Refused");
+                        status.className = "error";
+                        // Diagnostic Alert for 405/500 errors
+                        alert(`Diagnostic: Attempted to hit ${targetUrl}\nError: ${result.error || response.statusText}`);
+                    }
+                } catch (err) {
+                    status.innerText = "❌ Connection Failed";
+                    status.className = "error";
+                    alert("Is the Flask server running on Port 5000?");
+                }
+
+            }, (err) => {
+                status.innerText = "❌ GPS Denied - Check Permissions";
+                status.className = "error";
+                alert("Please enable location services to send SOS.");
+            });
+        }
+    </script>
+</body>
+</html>
