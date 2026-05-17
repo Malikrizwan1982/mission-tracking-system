@@ -3,87 +3,99 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MTS - Field SOS Unit</title>
+    <title>UN Field Terminal - Simulation Mode</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #1e293b; color: white; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        .container { text-align: center; width: 90%; max-width: 400px; background: #0f172a; padding: 40px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
-        input { width: 100%; padding: 15px; margin: 20px 0; border-radius: 8px; border: 1px solid #334155; background: #1e293b; color: white; font-size: 1.2rem; text-align: center; }
-        #sos-btn { width: 180px; height: 180px; font-size: 2rem; font-weight: bold; color: white; background: #ef4444; border: 8px solid #7f1d1d; border-radius: 50%; cursor: pointer; transition: all 0.2s; box-shadow: 0 0 30px rgba(239, 68, 68, 0.4); }
-        #sos-btn:active { transform: scale(0.9); background: #b91c1c; }
-        #status-text { margin-top: 20px; font-size: 0.9rem; min-height: 1.2em; color: #94a3b8; }
-        .success { color: #22c55e !important; }
-        .error { color: #f87171 !important; }
+        :root {
+            --bg: #0a0a0a; --surface: #161616; --primary: #bb86fc;
+            --danger: #ff4d4d; --success: #00e676; --text: #ffffff;
+            --border: #2c2c2c;
+        }
+        body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .terminal { width: 90%; max-width: 400px; background: var(--surface); padding: 40px; border-radius: 25px; border: 1px solid var(--border); text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.7); }
+        h1 { font-size: 1.1rem; letter-spacing: 4px; color: var(--primary); text-transform: uppercase; margin-bottom: 30px; }
+        
+        .input-group { text-align: left; margin-bottom: 30px; }
+        label { font-size: 0.7rem; color: #888; text-transform: uppercase; margin-bottom: 10px; display: block; }
+        input { width: 100%; padding: 18px; background: #222; border: 2px solid var(--border); border-radius: 12px; color: white; font-size: 1.2rem; text-align: center; outline: none; }
+        input:focus { border-color: var(--primary); }
+
+        .sos-btn {
+            width: 160px; height: 160px; border-radius: 50%; border: none;
+            background: var(--danger); color: white; font-size: 2rem; font-weight: 900;
+            cursor: pointer; box-shadow: 0 0 30px rgba(255, 77, 77, 0.4);
+            margin: 20px 0; transition: transform 0.1s;
+        }
+        .sos-btn:active { transform: scale(0.9); }
+
+        .update-btn { width: 100%; padding: 15px; background: var(--success); color: #00331a; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; text-transform: uppercase; }
+        
+        #console { margin-top: 25px; min-height: 50px; font-weight: bold; border-radius: 8px; display: flex; align-items: center; justify-content: center; visibility: hidden; }
+        .visible { visibility: visible !important; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h1 style="margin-top:0">FIELD SOS</h1>
-        <p style="color: #94a3b8">Enter Callsign to Register Emergency</p>
-        
-        <input type="text" id="callsign" placeholder="e.g. UN-99" value="UN-99">
-        
-        <button id="sos-btn" onclick="sendSOS()">SOS</button>
-        
-        <div id="status-text">Ready for signal...</div>
+    <div class="terminal">
+        <h1>UN Field Unit</h1>
+        <div class="input-group">
+            <label>Callsign</label>
+            <input list="missions" id="callsign" placeholder="SEARCH ID..." onfocus="this.value=''">
+            <datalist id="missions"></datalist>
+        </div>
+
+        <button class="sos-btn" onclick="sendSignal('SOS')">SOS</button>
+        <button class="update-btn" onclick="sendSignal('Active')">Location Update</button>
+
+        <div id="console">READY</div>
     </div>
 
     <script>
-        async function sendSOS() {
-            const callsignInput = document.getElementById('callsign').value.toUpperCase().trim();
-            const status = document.getElementById('status-text');
-            
-            if (!callsignInput) {
-                alert("Please enter your callsign first.");
-                return;
-            }
+        const API = 'http://127.0.0.1:5000/api/missions';
 
-            status.innerText = "🛰️ Locating GPS...";
-            status.className = "";
+        window.onload = async () => {
+            const res = await fetch(API + '/');
+            const data = await res.json();
+            document.getElementById('missions').innerHTML = data.map(m => `<option value="${m.callsign}">`).join('');
+        };
 
-            // Step 1: Get GPS
-            navigator.geolocation.getCurrentPosition(async (pos) => {
-                const lat = pos.coords.latitude;
-                const lng = pos.coords.longitude;
-                
-                status.innerText = "📡 Transmitting to HQ...";
+        async function sendSignal(statusType) {
+            const callsign = document.getElementById('callsign').value.trim().toUpperCase();
+            if (!callsign) return showMsg("ID REQUIRED", "#ff4d4d");
 
-                // Step 2: Send to Flask (Using ABSOLUTE URL to Port 5000)
-                const targetUrl = 'http://127.0.0.1:5000/api/missions/trigger_sos';
-                
-                try {
-                    const response = await fetch(targetUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            callsign: callsignInput,
-                            lat: lat,
-                            lng: lng
-                        })
-                    });
+            showMsg("TRANSMITTING...", "#bb86fc");
 
-                    const result = await response.json();
+            try {
+                // 1. Get current data for this mission so we DON'T overwrite the location with local GPS
+                const checkRes = await fetch(API + '/');
+                const allMissions = await checkRes.json();
+                const mission = allMissions.find(m => m.callsign === callsign);
 
-                    if (response.ok) {
-                        status.innerText = "✅ SIGNAL RECEIVED BY COMMAND";
-                        status.className = "success";
-                    } else {
-                        status.innerText = "❌ ERROR: " + (result.error || "Server Refused");
-                        status.className = "error";
-                        // Diagnostic Alert for 405/500 errors
-                        alert(`Diagnostic: Attempted to hit ${targetUrl}\nError: ${result.error || response.statusText}`);
-                    }
-                } catch (err) {
-                    status.innerText = "❌ Connection Failed";
-                    status.className = "error";
-                    alert("Is the Flask server running on Port 5000?");
+                // 2. Use existing map coords if they exist, otherwise fallback to 0,0
+                const payload = {
+                    callsign: callsign,
+                    status: statusType,
+                    lat: mission ? mission.lat : 0,
+                    lng: mission ? mission.lng : 0
+                };
+
+                const res = await fetch(API + '/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (res.ok) {
+                    showMsg("TRANSMITTED", "#00e676", true);
                 }
+            } catch (e) {
+                showMsg("SERVER OFFLINE", "#ff4d4d");
+            }
+        }
 
-            }, (err) => {
-                status.innerText = "❌ GPS Denied - Check Permissions";
-                status.className = "error";
-                alert("Please enable location services to send SOS.");
-            });
+        function showMsg(txt, col, hide) {
+            const el = document.getElementById('console');
+            el.innerText = txt; el.style.color = col; el.classList.add('visible');
+            if (hide) setTimeout(() => el.classList.remove('visible'), 3000);
         }
     </script>
 </body>

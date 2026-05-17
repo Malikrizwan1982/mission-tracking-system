@@ -1,32 +1,34 @@
-from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime, timezone
-
-db = SQLAlchemy()
+from app import db
+from datetime import datetime
 
 class Mission(db.Model):
+    """
+    Stores the status and location of field units (UN-99, WFP-01, etc.)
+    """
+    __tablename__ = 'missions'
+    
     id = db.Column(db.Integer, primary_key=True)
     callsign = db.Column(db.String(50), unique=True, nullable=False)
-    agency = db.Column(db.String(50))
-    status = db.Column(db.String(20), default='Active')
-    landmark = db.Column(db.String(100))
-    lat = db.Column(db.Float, default=0.0)
-    lng = db.Column(db.Float, default=0.0)
-    last_contact = db.Column(db.DateTime)
+    agency = db.Column(db.String(50), nullable=True)
+    status = db.Column(db.String(20), default='Active')  # Active, SOS, Standby
+    lat = db.Column(db.Float, nullable=True)
+    lng = db.Column(db.Float, nullable=True)
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "callsign": self.callsign,
-            "agency": self.agency,
-            "status": self.status,
-            "landmark": self.landmark,
-            "lat": self.lat,
-            "lng": self.lng,
-            "last_contact": self.last_contact.isoformat() if self.last_contact else None
-        }
+    def __repr__(self):
+        return f'<Mission {self.callsign} - {self.status}>'
 
 class IncidentLog(db.Model):
+    """
+    Stores a history of all status updates and emergencies for the Radio Room
+    """
+    __tablename__ = 'incident_logs'
+    
     id = db.Column(db.Integer, primary_key=True)
-    callsign = db.Column(db.String(50))
-    event = db.Column(db.String(100)) 
-    timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    callsign = db.Column(db.String(50), nullable=False)
+    event = db.Column(db.String(200), nullable=False)
+    time = db.Column(db.String(50), nullable=False)  # Formatted string for UI display
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<Log {self.callsign} at {self.time}>'

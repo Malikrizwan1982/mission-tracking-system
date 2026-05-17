@@ -2,303 +2,247 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>MTS - Pakistan Mission Command</title>
+    <title>UN Mission Tracking System</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { 
-            --bg: #0f172a; 
-            --card: #1e293b; 
-            --accent: #38bdf8; 
-            --sos: #ef4444; 
-            --moving: #22c55e;
-            --text: #f8fafc;
+        :root {
+            --un-blue: #009EDB;
+            --sos-red: #D32F2F;
+            --active-green: #2E7D32;
+            --standby-yellow: #FBC02D;
+            --log-bg: #f1f7fc;
         }
 
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background: var(--bg); 
-            color: var(--text); 
-            margin: 0; 
-            display: flex; 
-            height: 100vh; 
-            width: 100vw;
-            overflow: hidden; 
+        body, html { margin: 0; padding: 0; height: 100%; background: #f8f9fa; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        
+        .header { 
+            height: 90px; background: white; display: flex; align-items: center; 
+            justify-content: space-between; padding: 0 40px; border-bottom: 5px solid var(--un-blue);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 5000; position: relative;
+        }
+        .header-left { display: flex; align-items: center; gap: 20px; }
+        .main-logo { height: 65px; width: auto; }
+        .system-title { color: var(--un-blue); margin: 0; font-size: 1.8rem; font-weight: 800; text-transform: uppercase; }
+        
+        .mission-summary { display: flex; gap: 20px; margin: 0 30px; font-weight: bold; font-size: 0.95rem; }
+        .stat-item { display: flex; align-items: center; gap: 8px; }
+        .dot { width: 12px; height: 12px; border-radius: 50%; }
+
+        .header-right { display: flex; align-items: center; gap: 20px; }
+        #arm-btn { 
+            padding: 10px 20px; font-weight: bold; border: 2px solid var(--sos-red); 
+            color: var(--sos-red); border-radius: 4px; cursor: pointer; background: white; font-size: 13px;
+        }
+        #arm-btn.armed { background: var(--active-green); border-color: var(--active-green); color: white; }
+        
+        #status-filter { 
+            padding: 12px 15px; border-radius: 6px; border: 2px solid var(--un-blue); 
+            font-weight: 800; cursor: pointer; font-size: 14px; color: var(--un-blue);
+            background: white; outline: none;
         }
 
-        /* Left Side: Full Height Map */
-        #map { 
-            flex: 1.5; 
-            height: 100%; 
-            border-right: 2px solid #334155; 
-            z-index: 1;
+        #container { display: flex; height: calc(100vh - 90px); }
+
+        #sidebar { width: 380px; background: white; border-right: 1px solid #ddd; overflow-y: auto; padding: 15px; box-sizing: border-box; }
+        .agency-header { 
+            display: flex; align-items: center; gap: 10px; font-size: 0.85rem; 
+            font-weight: 800; color: #005682; padding: 15px 0 5px 0; 
+            border-bottom: 2px solid var(--un-blue); margin-bottom: 10px; text-transform: uppercase;
         }
-
-        /* Right Side: Dashboard Layout */
-        .dashboard-side { 
-            flex: 1; 
-            display: flex; 
-            flex-direction: column; 
-            height: 100vh; 
-            background: var(--bg);
-        }
-
-        .header-panel { 
-            padding: 20px; 
-            background: var(--card); 
-            border-bottom: 1px solid #334155; 
-            flex-shrink: 0;
-        }
-
-        /* Mission Cards Area (Approx 80%) */
-        .scroll-area { 
-            flex: 1; 
-            overflow-y: auto; 
-            padding: 20px; 
-        }
-
-        /* Incident Feed (Approx 20%) */
-        .log-section { 
-            height: 20vh; 
-            background: #020617; 
-            border-top: 2px solid #334155;
-            padding: 15px; 
-            overflow-y: auto;
-            flex-shrink: 0;
-        }
-
-        .controls { 
-            display: flex; 
-            gap: 10px; 
-            margin-top: 15px; 
-        }
-
-        select, button { 
-            padding: 10px 15px; 
-            border-radius: 6px; 
-            border: 1px solid #475569; 
-            background: var(--bg); 
-            color: white; 
-            font-weight: 600; 
-            cursor: pointer; 
-        }
-
-        button:hover { background: #334155; }
-
-        .grid { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); 
-            gap: 15px; 
-        }
-
-        /* CARD STYLES */
+        .agency-logo-icon { height: 22px; width: auto; }
+        
         .card { 
-            background: var(--card); 
-            padding: 15px; 
-            border-radius: 12px; 
-            border-left: 6px solid #64748b; 
-            transition: all 0.3s ease;
+            border: 1px solid #e0e0e0; padding: 12px; margin-bottom: 8px; border-radius: 6px; 
+            background: #fff; display: flex; flex-direction: column; 
+            cursor: help; position: relative;
+        }
+        .card-top-row { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+
+        .mission-details-hover {
+            display: none; position: fixed; left: 390px; width: 280px;
+            background: #2c3e50; color: white; padding: 15px; border-radius: 8px;
+            box-shadow: 10px 10px 25px rgba(0,0,0,0.5); z-index: 100000; pointer-events: none;
+        }
+        .card:hover .mission-details-hover { display: block; }
+        .detail-item { font-size: 12px; margin-bottom: 8px; border-bottom: 1px solid #3e5871; padding-bottom: 4px; }
+        .detail-label { color: var(--un-blue); font-weight: bold; font-size: 10px; text-transform: uppercase; display: block; }
+
+        .sos-active { border: 2px solid var(--sos-red); background: #fffafa; animation: flash 1.5s infinite; }
+        @keyframes flash { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+        
+        .btn-secure { 
+            margin-top: 10px; background: var(--un-blue); color: white; padding: 8px; 
+            text-align: center; font-weight: bold; border-radius: 4px; cursor: pointer; font-size: 11px; width: 100%; border: none;
         }
 
-        /* Moving State (Active + Location) */
-        .card.Moving { 
-            border-left-color: var(--moving); 
-            background: #064e3b; 
-            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.15);
-        }
+        .status-badge { padding: 4px 10px; border-radius: 12px; color: white; font-size: 10px; font-weight: 900; min-width: 60px; text-align: center; }
+        .status-sos { background: var(--sos-red); }
+        .status-active { background: var(--active-green); }
+        .status-standby { background: var(--standby-yellow); color: #000; }
 
-        /* SOS State (Emergency) */
-        .card.SOS { 
-            border-left-color: var(--sos); 
-            background: #450a0a; 
-            animation: pulse 1.5s infinite; 
-        }
-
-        .log-item { 
-            font-family: 'Courier New', monospace;
-            font-size: 0.8rem; 
-            padding: 6px 0; 
-            border-bottom: 1px solid #1e293b; 
-            color: #94a3b8;
-        }
-        .log-item b { color: var(--accent); }
-
-        @keyframes pulse { 
-            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 
-            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); } 
-            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } 
-        }
-
-        .resolve-btn { 
-            background: #22c55e; 
-            color: white; 
-            border: none; 
-            width: 100%; 
-            margin-top: 10px; 
-            padding: 8px;
-            border-radius: 6px;
-            font-weight: bold;
-        }
+        #map { flex-grow: 1; z-index: 1; }
+        #log-panel { width: 320px; background: var(--log-bg); border-left: 2px solid #dae6f0; display: flex; flex-direction: column; }
+        .log-header { background: var(--un-blue); color: white; padding: 15px; font-weight: bold; text-align: center; text-transform: uppercase; }
+        #log-content { flex: 1; overflow-y: auto; padding: 12px; font-family: 'Consolas', monospace; font-size: 11px; color: #334e68; }
     </style>
 </head>
 <body>
 
-    <div id="map"></div>
+    <audio id="siren-player" loop><source src="https://www.soundjay.com/buttons/beep-01a.mp3"></audio>
 
-    <div class="dashboard-side">
-        <div class="header-panel">
-            <h1 style="margin:0; font-size: 1.4rem; color: var(--accent);">PAKISTAN MISSION COMMAND</h1>
-            <div class="controls">
-                <select id="filterSelect" onchange="fetchData()">
-                    <option value="ALL">All Agencies</option>
-                    <option value="WFP">WFP</option>
-                    <option value="UNICEF">UNICEF</option>
-                    <option value="UNDSS">UNDSS</option>
-                </select>
-                <button onclick="testSiren()">🔈 TEST ALARM</button>
-            </div>
+    <div class="header">
+        <div class="header-left">
+            <img src="/logos/UN logo.png" class="main-logo">
+            <h1 class="system-title">UN Mission Tracking</h1>
         </div>
+        <div class="mission-summary" id="top-summary">
+            <div class="stat-item"><div class="dot" style="background:var(--un-blue)"></div> Total: <span id="count-all">0</span></div>
+            <div class="stat-item"><div class="dot" style="background:var(--active-green)"></div> Active: <span id="count-active">0</span></div>
+            <div class="stat-item"><div class="dot" style="background:var(--standby-yellow)"></div> Standby: <span id="count-standby">0</span></div>
+            <div class="stat-item"><div class="dot" style="background:var(--sos-red)"></div> SOS: <span id="count-sos">0</span></div>
+        </div>
+        <div class="header-right">
+            <div id="arm-btn" onclick="armSiren()">⚠️ ACTIVATE SIREN</div>
+            <select id="status-filter" onchange="sync(true)">
+                <option value="All">ALL MISSIONS</option>
+                <option value="Active">ACTIVE MISSIONS</option>
+                <option value="Standby">STANDBY MISSIONS</option>
+                <option value="SOS">SOS MISSIONS</option>
+            </select>
+        </div>
+    </div>
 
-        <div class="scroll-area">
-            <div class="grid" id="mission-grid"></div>
-        </div>
-
-        <div class="log-section">
-            <h4 style="margin:0 0 10px 0; color:var(--accent); font-size: 0.8rem; text-transform: uppercase;">Live Incident Feed</h4>
-            <div id="log-container"></div>
-        </div>
+    <div id="container">
+        <div id="sidebar"></div>
+        <div id="map"></div>
+        <div id="log-panel"><div class="log-header">Security Logs</div><div id="log-content"></div></div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Start Map View on Pakistan [Lat, Lng], Zoom level 5
-        const map = L.map('map').setView([30.3753, 69.3451], 5);
-        
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap'
-        }).addTo(map);
+        const map = L.map('map').setView([34.95, 72.33], 7);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
         let markers = {};
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        let isAlarmActive = false;
-        let alarmInterval = null;
+        let lastDataHash = "";
+        const siren = document.getElementById('siren-player');
 
-        function beep() {
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.frequency.setValueAtTime(isAlarmActive ? 900 : 600, audioCtx.currentTime);
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.start(); 
-            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.5);
-            osc.stop(audioCtx.currentTime + 0.5);
+        function getAgencyLogo(agency) {
+            const name = agency.toUpperCase();
+            if (name.includes("WFP")) return "/logos/WFP logo.png";
+            if (name.includes("UNICEF")) return "/logos/UNICEF logo.png";
+            if (name.includes("WHO")) return "/logos/WHO Logo.png";
+            return "/logos/UN logo.png";
         }
 
-        async function fetchData() {
+        function addLog(msg) {
+            const content = document.getElementById('log-content');
+            const time = new Date().toLocaleTimeString();
+            content.innerHTML = `<div class="log-entry"><strong>[${time}]</strong> ${msg}</div>` + content.innerHTML;
+        }
+
+        function armSiren() {
+            siren.play().then(() => { siren.pause(); 
+                document.getElementById('arm-btn').innerText = "✅ SIREN ARMED";
+                document.getElementById('arm-btn').classList.add('armed');
+                addLog("Master Alarm Armed by Operator");
+            });
+        }
+
+        async function resolve(callsign, lat, lng) {
             try {
-                const [mRes, lRes] = await Promise.all([
-                    fetch('http://127.0.0.1:5000/api/missions/'),
-                    fetch('http://127.0.0.1:5000/api/missions/logs')
-                ]);
-                
-                let missions = await mRes.json();
-                const logs = await lRes.json();
-                const filter = document.getElementById('filterSelect').value;
-
-                if (filter !== 'ALL') missions = missions.filter(m => m.agency === filter);
-                
-                renderMissions(missions);
-                updateMap(missions);
-                renderLogs(logs);
-            } catch (err) { 
-                console.error("Fetch Error: Ensure Flask is running on port 5000."); 
-            }
+                await fetch('http://127.0.0.1:5000/api/missions/update', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({callsign, status: 'Active', lat, lng})
+                });
+                addLog(`SECURE: Emergency cleared for ${callsign}`);
+                sync(true);
+            } catch (e) { }
         }
 
-        function updateMap(missions) {
-            missions.forEach(m => {
-                // Check if coordinates exist
-                if (m.lat && m.lng) {
-                    if (!markers[m.callsign]) {
-                        // Create marker if it doesn't exist
-                        markers[m.callsign] = L.marker([m.lat, m.lng]).addTo(map);
-                    } else {
-                        // Update existing marker position
-                        markers[m.callsign].setLatLng([m.lat, m.lng]);
+        async function sync(force = false) {
+            try {
+                const r = await fetch('http://127.0.0.1:5000/api/missions/');
+                const data = await r.json();
+                
+                document.getElementById('count-all').innerText = data.length;
+                document.getElementById('count-active').innerText = data.filter(m => m.status === 'Active').length;
+                document.getElementById('count-standby').innerText = data.filter(m => m.status === 'Standby').length;
+                document.getElementById('count-sos').innerText = data.filter(m => m.status === 'SOS').length;
+
+                const filter = document.getElementById('status-filter').value;
+                const filtered = data.filter(m => filter === 'All' || m.status === filter);
+                
+                const currentHash = JSON.stringify(filtered);
+                if (currentHash === lastDataHash && !force) return;
+                lastDataHash = currentHash;
+
+                // Clear markers that are no longer in the filtered set
+                const filteredCallsigns = filtered.map(m => m.callsign);
+                Object.keys(markers).forEach(callsign => {
+                    if (!filteredCallsigns.includes(callsign)) {
+                        map.removeLayer(markers[callsign]);
+                        delete markers[callsign];
                     }
+                });
+
+                let sidebarHtml = '';
+                let allPoints = [];
+
+                const groups = filtered.reduce((acc, m) => {
+                    const ag = m.agency || 'UN FIELD ASSETS';
+                    if (!acc[ag]) acc[ag] = [];
+                    acc[ag].push(m);
+                    return acc;
+                }, {});
+
+                for (const agency in groups) {
+                    sidebarHtml += `
+                        <div class="agency-header">
+                            <img src="${getAgencyLogo(agency)}" class="agency-logo-icon">
+                            <span>${agency}</span>
+                        </div>`;
                     
-                    markers[m.callsign].bindPopup(`<b>${m.callsign}</b><br>Status: ${m.status}`);
-                    
-                    if (m.status === 'SOS') {
-                        markers[m.callsign]._icon.style.filter = "hue-rotate(150deg) brightness(1.2) saturate(3)";
-                        map.flyTo([m.lat, m.lng], 12); 
-                    } else {
-                        markers[m.callsign]._icon.style.filter = "none";
-                    }
+                    groups[agency].forEach(m => {
+                        allPoints.push([m.lat, m.lng]);
+                        const isSOS = m.status === 'SOS';
+                        const badgeClass = isSOS ? 'status-sos' : (m.status === 'Standby' ? 'status-standby' : 'status-active');
+                        
+                        sidebarHtml += `
+                            <div class="card ${isSOS ? 'sos-active' : ''}">
+                                <div class="card-top-row">
+                                    <strong>${m.callsign}</strong>
+                                    <span class="status-badge ${badgeClass}">${m.status}</span>
+                                </div>
+                                <div class="mission-details-hover">
+                                    <div class="detail-item"><span class="detail-label">Staff</span> ${m.staff || 'Unknown'}</div>
+                                    <div class="detail-item"><span class="detail-label">Route</span> ${m.departure} ➔ ${m.destination}</div>
+                                </div>
+                                ${isSOS ? `<button class="btn-secure" onclick="resolve('${m.callsign}', ${m.lat}, ${m.lng})">MARK SECURE</button>` : ''}
+                            </div>`;
+
+                        const col = isSOS ? '#D32F2F' : (m.status === 'Standby' ? '#FBC02D' : '#2E7D32');
+                        if (markers[m.callsign]) {
+                            markers[m.callsign].setLatLng([m.lat, m.lng]).setStyle({color: col});
+                        } else {
+                            markers[m.callsign] = L.circleMarker([m.lat, m.lng], {radius: 10, color: col, weight: 3, fillOpacity: 0.9})
+                                .addTo(map)
+                                .bindTooltip(`<strong>${m.callsign}</strong>`, { sticky: true });
+                        }
+                    });
                 }
-            });
-        }
+                document.getElementById('sidebar').innerHTML = sidebarHtml;
 
-        function renderMissions(data) {
-            const grid = document.getElementById('mission-grid');
-            let sosCount = 0;
-            grid.innerHTML = data.map(m => {
-                let cardClass = m.status;
-                
-                // Card Color Logic: 
-                // If Active AND has coordinates (not 0), turn GREEN
-                if (m.status === 'Active' && m.lat !== 0) {
-                    cardClass = 'Moving';
+                // Re-zoom map whenever filter changes or data is forced updated
+                if (allPoints.length > 0) {
+                    map.fitBounds(allPoints, { padding: [80, 80], maxZoom: 10 });
                 }
-
-                if (m.status === 'SOS') sosCount++;
-
-                return `
-                    <div class="card ${cardClass}">
-                        <small style="color:var(--accent)">${m.agency}</small>
-                        <h3 style="margin:5px 0">${m.callsign}</h3>
-                        <div style="font-size:0.7rem; opacity: 0.8;">
-                            LOC: ${m.lat.toFixed(4)}, ${m.lng.toFixed(4)}
-                        </div>
-                        ${m.status === 'SOS' ? 
-                            `<button class="resolve-btn" onclick="resolveMission('${m.callsign}')">MARK SAFE</button>` : 
-                            `<div style="margin-top:10px; font-size:0.65rem; font-weight:bold;">● ${cardClass.toUpperCase()}</div>`}
-                    </div>
-                `;
-            }).join('');
-            toggleAlarm(sosCount > 0);
+            } catch (e) { }
         }
 
-        function renderLogs(logs) {
-            document.getElementById('log-container').innerHTML = logs.map(l => `
-                <div class="log-item"><span>[${l.time}]</span> <b>${l.callsign}</b>: ${l.event}</div>
-            `).join('');
-        }
-
-        function toggleAlarm(active) {
-            if (active && !isAlarmActive) {
-                isAlarmActive = true;
-                alarmInterval = setInterval(beep, 1000);
-            } else if (!active && isAlarmActive) {
-                isAlarmActive = false;
-                clearInterval(alarmInterval);
-            }
-        }
-
-        async function resolveMission(callsign) {
-            await fetch('http://127.0.0.1:5000/api/missions/resolve', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ callsign: callsign })
-            });
-            fetchData();
-        }
-
-        function testSiren() { 
-            if (audioCtx.state === 'suspended') audioCtx.resume(); 
-            beep(); 
-        }
-
-        setInterval(fetchData, 3000);
-        fetchData();
+        setInterval(sync, 3000);
+        window.onload = () => sync(true);
     </script>
 </body>
 </html>
